@@ -4,7 +4,7 @@ DEBUG = False  # Toggle debug mode on/off
              # If True, no GPIO access, only prints what's happening.
 
 if not DEBUG:
-    import RPi.GPIO as GPIO
+    import lgpio as GPIO
 import time
 import os
 import json
@@ -12,53 +12,54 @@ import json
 # Define GPIO pins for each motor here (same as your test).
 # Adjust these if needed to match your hardware.
 MOTORS = [
-    (17, 4),   # Pump 1
+    (0, 0),   # Pump 1
     (22, 27),  # Pump 2
     (9, 10),   # Pump 3
     (5, 11),   # Pump 4
     (13, 6),   # Pump 5
-    (26, 19),  # Pump 6
+    (0, 0),    # Pump 6
     (20, 21),  # Pump 7
-    (16, 12),  # Pump 8
-    # If you have up to 10 pumps, add them here:
-    # (X, Y),   # Pump 9
-    # (A, B)    # Pump 10
+    (15, 14),  # Pump 8
+    (0, 0),    # Pump 9
+    (9, 10),   # Pump 10
+    (0, 0),    # Pump 11
+    (16, 12)   # Pump 12
 ]
-
 
 def setup_gpio():
     """Set up all motor pins for OUTPUT."""
     if DEBUG:
         print("DEBUG: setup_gpio() called — Not actually initializing GPIO pins.")
     else:
-        GPIO.setmode(GPIO.BCM)
+        global chip
+        chip = GPIO.gpiochip_open(4)
         for ia, ib in MOTORS:
-            GPIO.setup(ia, GPIO.OUT)
-            GPIO.setup(ib, GPIO.OUT)
+            GPIO.gpio_claim_output(chip, ia)
+            GPIO.gpio_claim_output(chip, ib)
 
 def motor_forward(ia, ib):
     """Drive motor forward."""
     if DEBUG:
         print(f"DEBUG: motor_forward(ia={ia}, ib={ib}) called — No actual motor movement.")
     else:
-        GPIO.output(ia, GPIO.HIGH)
-        GPIO.output(ib, GPIO.LOW)
+        GPIO.gpio_write(chip, ia, 1)
+        GPIO.gpio_write(chip, ib, 0)
 
 def motor_stop(ia, ib):
     """Stop motor."""
     if DEBUG:
         print(f"DEBUG: motor_stop(ia={ia}, ib={ib}) called — No actual motor movement.")
     else:
-        GPIO.output(ia, GPIO.LOW)
-        GPIO.output(ib, GPIO.LOW)
+        GPIO.gpio_write(chip, ia, 0)
+        GPIO.gpio_write(chip, ib, 0)
 def motor_reverse(ia,ib):
     if DEBUG:
         print("Debug reverse")
     else:
-        GPIO.output(ia,GPIO.LOW)
-        GPIO.output(ib,GPIO.HIGH)
+        GPIO.gpio_write(chip, ia, 0)
+        GPIO.gpio_write(chip, ib, 1)
 
-def prime_pumps(duration=10):
+def prime_pumps(duration=60):
     """
     Primes each pump for `duration` seconds in sequence (one after another).
     """
@@ -71,12 +72,12 @@ def prime_pumps(duration=10):
             motor_stop(ia, ib)
     finally:
         if not DEBUG:
-            GPIO.cleanup()
+            GPIO.gpiochip_close(chip)
         else:
             print("DEBUG: prime_pumps() complete — no GPIO cleanup in debug mode.")
 
 
-def clean_pumps(duration=10):
+def clean_pumps(duration=60):
     """
     Reverse each pump for `duration` seconds (one after another),
     e.g. for cleaning lines.
@@ -90,7 +91,7 @@ def clean_pumps(duration=10):
             motor_stop(ia, ib)
     finally:
         if not DEBUG:
-            GPIO.cleanup()
+            GPIO.gpiochip_close(chip)
         else:
             print("DEBUG: clean_pumps() complete no GPIO cleanup in debug mode.")
 
@@ -126,9 +127,9 @@ def make_drink(pump_config_path, recipe, single_or_double="single"):
 
     # 4) Get the 1oz coefficient (seconds per ounce) from environment or default to 8
     try:
-        oz_coefficient = float(os.getenv("ONE_OZ_COEFFICIENT", "8"))
+        oz_coefficient = float(os.getenv("ONE_OZ_COEFFICIENT", "33"))
     except ValueError:
-        oz_coefficient = 8.0
+        oz_coefficient = 33
 
     setup_gpio()
     try:
@@ -179,6 +180,6 @@ def make_drink(pump_config_path, recipe, single_or_double="single"):
         print("Finished making the drink!")
     finally:
         if not DEBUG:
-            GPIO.cleanup()
+            GPIO.gpiochip_close(chip)
         else:
             print("DEBUG: make_drink() complete — no GPIO cleanup in debug mode.")
